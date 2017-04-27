@@ -1,4 +1,11 @@
-# ORB-SLAM2
+# ORB-SLAM2 commented
+In May 2017 students and professors at Universidad Austral, Argentina, started traslating our spanish documentation on code to english, to make them available to wider audience.
+
+The documentation is written as comments in include/\*.h files compatible with doxygen.  So, you can run doxygen on them and generate pretty html browsable documentation.
+
+This project has no intention to merge with Raúl Mur excellent ORB-SLAM2.  In order to facilitate manual merging to those willing to have the latest ORB-SLAM2 from Raúl, with these documentational comments, we decided to put all comments in .h files, because they don't change so often.  That's the reason why we are doing exactly the opposite of the best practices, which consist on commenting source files instead of header files.
+
+# Original ORB-SLAM2
 **Authors:** [Raul Mur-Artal](http://webdiis.unizar.es/~raulmur/), [Juan D. Tardos](http://webdiis.unizar.es/~jdtardos/), [J. M. M. Montiel](http://webdiis.unizar.es/~josemari/) and [Dorian Galvez-Lopez](http://doriangalvez.com/) ([DBoW2](https://github.com/dorian3d/DBoW2))
 
 **13 Jan 2017**: OpenCV 3 and Eigen 3.3 are now supported.
