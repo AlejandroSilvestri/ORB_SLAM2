@@ -40,12 +40,49 @@ namespace ORB_SLAM2
 class MapPoint;
 class KeyFrame;
 
+
+/**
+* Represents a frame, an image, with the detected keypoints.
+*
+* Frame represents a camera pose, with its image, detected 2D points, its descriptors, its 3D mapping, pose and others.
+*
+* The frame's position on the map is obtained with Frame::GetCameraCenter. The orientation is obtained with Frame::GetRotationInverse.
+*
+* Tracking uses 3 frames:
+* - Frame::mCurrentFrame
+* - Frame::mInitialFrame
+* - Frame::mLastFrame
+*
+* Each frame has its own K calibration matrix
+* It is usually the same matrix (with the same values) for every frame and keyframes.
+*
+* The constructor clones Mat K, making a copy in Frame::mK.
+* Then, it analyzes but does not save the image. It is lost when the constructor ends its execution.
+* Part of the analysis consists in detecting keypoints, extracting its descriptors and classifying them.
+*
+* Keypoints, descriptors, BoW and tracked 3D points are registered in parallel vectors and explained in Frame::N.
+*
+* The coordinate system and the meaning of the position matrices is explained in Frame::mTcw.
+*
+* This class does not determine the frame's pose. Its pose is registered by Tracking and Optimizer.
+*
+* The matrix's pose is explained in Frame::mTcw.
+*
+* \sa SetPose
+* \sa mTcw
+*/
 class Frame
 {
 public:
+
+        /**
+         * The empty arguments constructor creates an uninitialized Frame
+         * The only initialized data is nNextId=0.
+         * Not used.
+         */
     Frame();
 
-    // Copy constructor.
+    // Copy constructor. Clones a frame
     Frame(const Frame &frame);
 
     // Constructor for stereo cameras.
@@ -54,38 +91,128 @@ public:
     // Constructor for RGB-D cameras.
     Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
 
+     /**
+     * Constructor that craetes a Frame and initializes it with the arguments.
+     * @param timeStamp Timestamp for the registry. ORB-SLAM does not use it.
+     * @param extractor Extractor algorithm used to obtain descriptors.  ORB-SLAM uses BRIEF extractor by ORB specifically.
+     *
+     * Two camera modes are distinguished: normal when the distortion coefficients are provided, or fisheye if noArray() is provided.
+     *
+     * It is only Invoked from Tracling::GrabImageMonocular.
+     */
     // Constructor for Monocular cameras.
     Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
 
+    /**
+     * Proceeds with the ORB descriptors extraction.
+     *
+     * @param flag false for monocular, or left camera.  true for right camera.  It is always invoked with false.
+     * @param im Image from which the descriptors are extracted.
+     *
+     * The descriptors are preserved in Frame::mDescriptors.
+     *
+     * Only invoked from constructor.
+     */
     // Extract ORB on the image. 0 for left image and 1 for right image.
     void ExtractORB(int flag, const cv::Mat &im);
 
+    /**
+     * Computes BoW for every descriptor in the frame.
+     * They are saved in the mBowVec property of type BowVector and in mFeatVec of type FeatureVector.
+     *
+     * If mBowVec is non-empty, the method returns without doing anything, avoiding recomputation.
+     *
+     * BoW is computed for a frame when it is built in keyframe, and when trying to relocate.
+     *
+     * DBoW2 is documented in http://webdiis.unizar.es/~dorian/doc/dbow2/annotated.html
+     *
+     *
+     */
     // Compute Bag of Words representation.
     void ComputeBoW();
 
+    /**
+     * Register the pose .
+     *
+     * Used by multiple methods to establish or correct the frame's pose.
+     *
+     * After establishing the new pose its different representations are recalculated with UpdatePoseMatrices, such as the translation vector or the rotation matrix.
+     *
+     * @param Tcw New pose, rototranslation matrix in homogeneous coordinates of 4x4.
+     *
+     * Registers the new pose in Frame::mTcw, which belongs to the coordinate system's point of origin's pose of the camera.
+     *
+     * This method is invoked by Tracking with approximate positions to initialize and track down,
+     * and by Optimizer::PoseOptimization, which is the only one that registers the optimized pose.
+     */
     // Set the camera pose.
     void SetPose(cv::Mat Tcw);
 
+    /**
+     * Calculates the mRcw mTcw and mOw position matrices based on the mTcw pose.
+     * This matrices are a way of exposing the pose, they are not used in the ORB-SLAM operation.
+     * UpdatePoseMatrices() extracts the information from mTcw, which is the matrix that combines the complete pose.
+     *
+     */
     // Computes rotation, translation and camera center matrices from the camera pose.
     void UpdatePoseMatrices();
 
+    /** Returns the camera position's vector, the center of the camera.*/
     // Returns the camera center.
     inline cv::Mat GetCameraCenter(){
         return mOw.clone();
     }
 
+    /**
+     * Returns the orientation on the map.
+     *
+     * It is the inverse of the mRwc rotation.
+     *
+     * @returns mRwc.t()
+     *
+     * It does not use GetRotation to return the rotation without inverting mRcw.
+     */
     // Returns inverse of rotation
     inline cv::Mat GetRotationInverse(){
         return mRwc.clone();
     }
 
+    /**
+     * Indicates if a given 3D point belong to the frame's visual subspace (frustum).
+     * The visual subspace is a quadrilateral based pyramid, which vertices are those in the frame but undistortioned.
+     * viewingCosLimit is a way of limiting the frustum's scope.
+     */
     // Check if a MapPoint is in the frustum of the camera
     // and fill variables of the MapPoint to be used by the tracking
     bool isInFrustum(MapPoint* pMP, float viewingCosLimit);
 
+    /**
+     * Calculates the coordinates of the grid's cell, to which a keypoint belongs.
+     * Informs the coordinates in the posX and posY arguments passed by reference.
+     * Returns true if the point belong to the grid, otherwise false.
+     * @param kp Undistortioned keypoint.
+     * @param posX X coordinate of the keypoint's cell.
+     * @param posY Y coordinate of the keypoint's cell.
+     *
+     */
     // Compute the cell of a keypoint (return false if outside the grid)
     bool PosInGrid(const cv::KeyPoint &kp, int &posX, int &posY);
 
+    /**
+     * Selects the points inside a squared window of center x,y and r radius (2r side).
+     *
+     * Traverses every level of the frame, filtering the points by coordinates.
+     *
+     * Used to reduce the matching candidates.
+     *
+     * @param x Center of the area X coordinate
+     * @param y Center of the area Y coordinate
+     * @param r Radius of the squared area
+     * @param minLevel Minimum level of the pyramid to search for the keypoints. Negative if there is no minimum.
+     * @param maxLevel Maximum level of the pyramid to search for the keypoints. Negative if there is no maximum.
+     *
+     * Only invoked by multiple methods in ORBmatcher.
+     */
     vector<size_t> GetFeaturesInArea(const float &x, const float  &y, const float  &r, const int minLevel=-1, const int maxLevel=-1) const;
 
     // Search a match for each keypoint in the left image to a keypoint in the right image.
