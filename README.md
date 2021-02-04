@@ -1,4 +1,4 @@
-Warning: work in progress.
+Warning: The current project is Abandoned and will be deleted.  OS1 project has the full documented code in spanish.  I didn't get the time nor collaboartors to translate this documentation to english.
 
 # ORB-SLAM2 commented
 In May 2017 students and professors at Universidad Austral, Argentina, started traslating our spanish documentation on code to english, to make them available to wider audience.
